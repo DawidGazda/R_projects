@@ -1,0 +1,85 @@
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(cowplot)
+```
+
+Kod pochodzi z projektu zaliczeniowego dotyczącego wizualizacji danych.
+Wizualizacja dotyczy przedstawienia zależności między jakością wina, a charakterystyką fizykochemiczną.
+
+```{r}
+wine = read.csv('/Users/dawidgazda/Desktop/Projekty/R/Wizualizacja/wineQualityReds.csv')
+
+#Zamiana zmiennej jakości (quality) na opis
+wine$jakosc <- cut(wine$quality, 
+                   breaks=c(-Inf, 4, 5, 6, 7, Inf), 
+                   labels=c("Nie dotknę tego","Niska jakość","Średnia jakość","Dobra jakość", "Wypiłbym"))
+
+head(wine)
+```
+
+
+Zależność jakości wina od pH.
+```{r}
+wine %>% ggplot(aes(x=jakosc, y=pH, fill=jakosc)) + 
+  geom_boxplot(alpha=0.75) + 
+  geom_jitter(alpha=0.1) + 
+  labs(
+      title = 'Zależność między jakością wina, a pH',
+      subtitle = 'Jak widać im niższe pH tym lepsza jakość wina...',
+      x = 'Ocena jakości',
+       ) +
+  scale_fill_brewer(
+    palette="RdYlGn",
+    name="Legenda"
+                    ) +
+  theme_classic() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5)
+        )
+
+ggsave(filename = 'Jakosc_wina.jpg', path = '/Users/dawidgazda/Desktop/Projekty/R/Wizualizacja', width = 8, height = 6, device='tiff', dpi=300, compression = 'lzw')
+```
+
+
+Wykres zależności pH od stężenia kwasów w winie.
+```{r}
+plot1 = wine %>% ggplot(aes(fixed.acidity, pH)) + 
+        geom_point(alpha=0.2, color="#FF99FF") + 
+        scale_x_log10(breaks=seq(5,15,1)) + 
+        geom_smooth(method = lm, color="#3300CC") +
+        labs(
+          title = 'Zależność pH od pierwotnej kwasowości wina',
+          x= 'Stężenie kwasu winowego w logarytmicznej skali [g/L]'
+             ) +
+        theme_classic() +
+        theme(
+          plot.title = element_text(hjust = 0.5, size = 10),
+              )
+
+plot2 = wine %>% ggplot(aes(volatile.acidity, pH)) + 
+        geom_point(alpha=0.2, color="#FF99FF") + 
+        scale_x_log10(breaks=seq(.1,1,.1)) + 
+        geom_smooth(method = lm, color="#3300CC") +
+        labs(
+          title = 'Zależność pH od kwasowości powstałej podczas procesu dojrzewania',
+          x = 'Stężenie kwasu octowego w logarytmicznej skali [g/L]'
+             ) +
+        theme_classic() +
+        theme(
+          plot.title = element_text(hjust = 0.5, size = 10)
+              )
+
+plots_combined = plot_grid(plot1, plot2,
+                           labels = 'AUTO',
+                           label_size = 12,
+                           ncol= 1
+                           )
+
+plots_combined
+
+ggsave(filename = 'Kwasowosc.tiff', path = '/Users/dawidgazda/Desktop/Projekty/R/Wizualizacja', width = 8, height = 6, device='tiff', dpi=300, compression = 'lzw')
+```
+

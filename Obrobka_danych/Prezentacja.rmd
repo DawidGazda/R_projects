@@ -1,0 +1,73 @@
+```{r}
+library(readr)
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(ggpubr)
+```
+
+Dane data_test.xlsx zawierają wyniki pomiarów dla czterech szczepów: kontrola i trzy szczepy badane. Na ich podstawie sprawdzamy, który szczep badany różni się od szczepu kontrolnego. 
+Przedstawiłem wyniki na wykresie, tak aby widoczne były wszystkie obserwacje oraz wynik odpowiedniego testu statystycznego. 
+W danych znajdowały się również błędy i/lub brakujące wartości. Nie zmieniałem niczego w pliku, wszystko zostało zrobione przy użyciu kodu.
+
+```{r}
+#Tak się można pozbyć zmiennych innych jak int (szczep3) czyli '-', który zmieniał wektor int na chr
+a = read_xlsx('/Users/dawidgazda/Desktop/Projekty/R/Obrobka_danych/data_test.xlsx', na = '-')
+
+#Tutaj pozbywamy się wartości odbiegających od reszty (outliers)
+dane = a %>% pivot_longer(cols = 1:4, names_to = 'szczep', values_to = 'wartosc', values_drop_na = TRUE) %>% group_by(szczep) %>% mutate(z_score = (abs((wartosc - mean(wartosc)) / sd(wartosc)))) %>% filter(z_score<3)
+
+#Wykres i obliczona statystyka
+dane %>% ggplot(aes(szczep, wartosc, fill=szczep)) + geom_violin(alpha=0.7) + stat_compare_means(
+  ref.group = 'kontrola',
+  method = 't.test'
+)
+#Najbardziej różni się 2 szczep
+```
+
+Korzystając z pliku olympics_poland.txt przedstawiłem na wykresie słupkowym liczbę medali Polski na letnich igrzyskach olimpijskich w latach 1980 - 2016. 
+Na wykresie zaznaczono tylko 5 najczęściej pojawiających się dyscyplin w danym roku (poprzez wypełnienie słupka), pozostałe dyscypliny zostały zebrane razem w jedną wspólną kategorię i określone jako inne.
+
+```{r}
+olymp = read.table('/Users/dawidgazda/Desktop/Projekty/R/Obrobka_danych/olumpics_poland.txt')
+
+#Tutaj sprawdzam top 5 dyscyplin dla których mieliśmy najwięcej medali na każdych igrzyskach
+dane = olymp %>% filter(year >= 1980, season == 'Summer') %>% drop_na() %>% group_by(year, sport) %>% tally(sort = TRUE) %>% mutate(mapowanie = ifelse(row_number() <= 5, NA, 'Inne'))
+
+dane$mapowanie[is.na(dane$mapowanie)] <- dane$sport[is.na(dane$mapowanie)]
+
+gg = dane %>% group_by(year, mapowanie) %>% summarise(Liczba_medali = sum(n),
+                                                      Dyscyplina = mapowanie,
+                                                      Rok = year) %>% slice_head(n=1)
+
+#Wykres
+gg %>% ggplot(aes(x=Rok, y=Liczba_medali, fill=Dyscyplina, label=Dyscyplina)) + geom_col(width = 1.5, show.legend = FALSE) + geom_text(size = 3, position = position_stack(vjust = 0.5)) + theme_bw() + scale_x_continuous(breaks = c(1980,1988,1992,1996,2000,2004,2008,2012,2016)) #Pewnie można prościej ale tak ładnie się pokazują lata
+```
+
+Na podstawie danych board games przygotuj wykresy odpowiadające na następujące pytania:
+  a. Jak rosła liczba gier publikowanych w latach 1950-2016,
+  b. Czy gry planszowe robią się co raz bardziej skomplikowane? - Jako miarę skomplikowania wykorzystałem minimalny czas gry w przeliczeniu na 1 gracza.
+  c. Jakie kategorie gier planszowych były najbardziej popularne w latach 1980-1989, 1990-1999,          2000-2009 i 2010-2016?
+
+```{r}
+board_games <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-03-12/board_games.csv")
+head(board_games)
+
+#Publikacja gier w latach 1950-2016
+# Ilość nowych gier wzrasta co roku - wniosek
+data = board_games %>% filter(year_published >= 1950, year_published <= 2016) %>% group_by(year_published) %>% add_tally() %>% slice_head(n=1)
+
+data %>% ggplot(aes(x = year_published, y = n)) + geom_col() + theme_bw()
+
+#Skomplikowanie gry
+#Poziom trudności rósł tak do 1980 roku gdzie osiągną szczyt a potem już maleje - wniosek
+data = board_games %>% select(year_published, max_playtime, min_players, min_playtime) %>% drop_na() %>% filter(min_playtime > 0, min_players > 0) %>% mutate(czas_na_1_gracza = min_playtime/min_players) %>% group_by(year_published) %>%  mutate(sredni_czas_gry = mean(czas_na_1_gracza, na.rm = TRUE)) %>% slice_head(n=1)
+
+data %>% ggplot(aes(x = year_published, y = sredni_czas_gry)) + geom_col() + theme_bw()
+
+#Kategorie gier
+data = board_games %>% select(name, category, year_published) %>% separate_rows(category, sep=',') %>% filter(year_published %in% (1980:2016)) %>% mutate(zakres = cut(year_published, c(1980, 1990, 2000, 2010, 2016), labels = c('1980-1989', '1990-1999', '2000-2009', '2010-2016'))) %>% group_by(zakres, category) %>% add_tally(sort = TRUE) %>% drop_na() %>% ungroup(category) %>% slice_head(n=1)
+
+data %>% ggplot(aes(x=zakres, y=n, fill=category)) + geom_col(alpha = 0.7) + ylab('Liczba wydanych gier') + xlab('Lata') + theme_bw() + labs(fill = "Kategoria")
+```
